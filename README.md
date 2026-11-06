@@ -19,11 +19,11 @@ Turn a normal photo into a stereo **VR180** image in ComfyUI, with two LoRAs for
 
   | File | Folder |
   |---|---|
-  | `qwen_image_2.1_bf16.safetensors` | `models/diffusion_models` |
-  | `qwen3vl_8b_bf16.safetensors` | `models/text_encoders` |
+  | `qwen_image_2.1_int8_convrot.safetensors` | `models/diffusion_models` |
+  | `qwen3vl_8b_int8_convrot.safetensors` | `models/text_encoders` |
   | `qwen_image_2.1_vae_bf16.safetensors` | `models/vae` |
 
-  The `int8_convrot` versions also work and need less VRAM.
+  For maximum quality use the `bf16` versions of the first two (the LoRAs were trained on them) and select them in the loaders.
 - The two LoRAs (not included here) in `models/loras`: `vr180_flat2vr_v4_000001250.safetensors` and `vr180_l2r_v2_000002300.safetensors`.
 
 ## Installation
@@ -37,10 +37,12 @@ Restart ComfyUI. It only needs numpy and OpenCV, which ComfyUI already has.
 
 ## Usage
 
-1. Open `workflows/flat2vr.json`, or `workflows/flat2vr_refine.json` for an extra detail pass.
+1. Open `workflows/flat2vr_v1.json`.
 2. Drop your photo on **Flat2VR Place Photo** and place it. A red frame means it leaves the 180° view.
 3. Optionally describe the scene in **Flat2VR Prompt**.
-4. Run. The result is saved as `output/flat2vr/flat2vr_180_LR_*.png`; VR players read `_180_LR` as 180° side by side.
+4. Run. The workflow makes the left eye, refines it, makes the right eye and joins them. The side-by-side result is saved as `output/flat2vr_180VR_*.png`; look around it in **180 Preview**.
+
+If your VR player doesn't detect the format, add `_180_LR` to the file name.
 
 ## Tips
 
