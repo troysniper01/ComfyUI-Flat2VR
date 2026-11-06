@@ -54,7 +54,7 @@ export const CROP_CSS = `
 export class CropEditor {
   /** frame: the square element; onChange(spec, rect) whenever the crop changes. */
   constructor(frame, onChange) {
-    this.frame = frame;
+    this.square = frame;
     this.onChange = onChange;
     this.canvas = document.createElement("canvas");
     this.canvas.className = "f2v-crop";
@@ -192,7 +192,7 @@ export class CropEditor {
   }
 
   /** Redraw if needed (called every animation frame by the placer). */
-  frame() {
+  redraw() {
     if (!this.isOpen || !this.photo) return;
     const r = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;

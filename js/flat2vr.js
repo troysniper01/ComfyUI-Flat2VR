@@ -407,7 +407,7 @@ function setup(node) {
     }
     if (!dropTargets.has(box.closest("[data-node-id]"))) listenForDrops(box.closest("[data-node-id]"));
     cropper.setSpec(s.crop);
-    cropper.frame();
+    cropper.redraw();
     const resized = view.fit();
     const key = JSON.stringify(s);
     if (dirty || resized || key !== lastKey) {
