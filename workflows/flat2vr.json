@@ -1,0 +1,1138 @@
+{
+ "last_node_id": 19,
+ "last_link_id": 29,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "Note",
+   "pos": [
+    20,
+    -350
+   ],
+   "size": [
+    1060,
+    270
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "Note"
+   },
+   "widgets_values": [
+    "HOW TO USE (Flat2VR: a 2D photo into a VR180 image)\n\n1. Drop your photo onto Flat2VR Place Photo (or use its upload button / file list).\n2. Place it: the square IS the canvas the LoRA gets (the full 180\u00b0 view). The photo is first cut to the\n   nearest shape the LoRA was trained on (16:9, 3:2, 4:3, 5:4, 1:1 or portrait), trimming as little as possible.\n   - Drag the photo to move it (yaw / pitch; hold Ctrl for fine moves). Level or slightly down (pitch -15..+5) works best.\n   - Scroll over it to resize it (diag_fov). A phone's main camera is about 75-85\u00b0; trained range 38.5-130\u00b0.\n     Or type the 35 mm-equivalent focal length from the photo's EXIF into focal_35mm.\n   - Hold Shift over it to crop by hand: drag a corner to change the shape (it snaps to the trained ones),\n     drag inside to move the crop, scroll to zoom it. Let go of Shift to place again.\n   - A red frame means the photo leaves the 180\u00b0 view: move it in or make it smaller.\n3. Flat2VR Prompt (optional): the setting, a position tag, and whether the camera person's body is in shot.\n4. Run. The photo itself is pasted back exactly (the left eye), the l2r LoRA makes the right eye, and the\n   side-by-side VR180 image is saved as output/flat2vr/flat2vr_180_LR_*.png (VR players read \"_180_LR\").\n   Look around it in the 180 Preview: drag, scroll, and switch between the left and right eye.\n\nTips: LoRA strength 0.8-1.0. If a placement leaves the 180\u00b0 view, the node stops with a message."
+   ],
+   "title": "How to use",
+   "color": "#444"
+  },
+  {
+   "id": 2,
+   "type": "Flat2VRPlacePhoto",
+   "pos": [
+    20,
+    50
+   ],
+   "size": [
+    540,
+    860
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "canvas",
+     "type": "IMAGE",
+     "links": [
+      4,
+      13
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "photo_mask",
+     "type": "MASK",
+     "links": [
+      14
+     ],
+     "slot_index": 1
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "Flat2VRPlacePhoto"
+   },
+   "widgets_values": [
+    "your_photo.jpg",
+    0.0,
+    -5.0,
+    80.0,
+    0.0,
+    2048,
+    "auto",
+    "image"
+   ]
+  },
+  {
+   "id": 3,
+   "type": "Flat2VRPrompt",
+   "pos": [
+    620,
+    50
+   ],
+   "size": [
+    460,
+    250
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "links": [
+      5
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "Flat2VRPrompt"
+   },
+   "widgets_values": [
+    "",
+    "none",
+    false
+   ]
+  },
+  {
+   "id": 4,
+   "type": "UNETLoader",
+   "pos": [
+    1160,
+    50
+   ],
+   "size": [
+    360,
+    100
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      1,
+      16
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_bf16.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 5,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    1160,
+    220
+   ],
+   "size": [
+    360,
+    115
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      6
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "vr180_flat2vr_v4_000001250.safetensors",
+    1.0
+   ],
+   "title": "Flat2VR LoRA (strength 0.8-1.0)"
+  },
+  {
+   "id": 6,
+   "type": "CLIPLoader",
+   "pos": [
+    1160,
+    405
+   ],
+   "size": [
+    360,
+    120
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      2,
+      17
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen3vl_8b_bf16.safetensors",
+    "qwen_image",
+    "default"
+   ]
+  },
+  {
+   "id": 7,
+   "type": "VAELoader",
+   "pos": [
+    1160,
+    595
+   ],
+   "size": [
+    360,
+    83
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      3,
+      11,
+      18,
+      25
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "qwen_image_2.1_vae_bf16.safetensors"
+   ]
+  },
+  {
+   "id": 8,
+   "type": "TextEncodeQwenImage21",
+   "pos": [
+    1600,
+    50
+   ],
+   "size": [
+    340,
+    280
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 2
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 3
+    },
+    {
+     "name": "images.image_1",
+     "type": "IMAGE",
+     "link": 4
+    },
+    {
+     "name": "images.image_2",
+     "type": "IMAGE",
+     "link": null
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": 5,
+     "widget": {
+      "name": "prompt"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "links": [
+      7
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "links": [
+      8
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      9
+     ],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "TextEncodeQwenImage21"
+   },
+   "widgets_values": [
+    "",
+    "",
+    2048
+   ],
+   "title": "Text Encode Qwen Image 2.1 (resolution 2048)"
+  },
+  {
+   "id": 9,
+   "type": "KSampler",
+   "pos": [
+    1960,
+    50
+   ],
+   "size": [
+    320,
+    300
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 6
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 7
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 8
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      10
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    0,
+    "randomize",
+    40,
+    1.0,
+    "euler",
+    "simple",
+    1.0
+   ],
+   "title": "KSampler (40 steps, cfg 1)"
+  },
+  {
+   "id": 10,
+   "type": "VAEDecode",
+   "pos": [
+    2300,
+    50
+   ],
+   "size": [
+    200,
+    60
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 10
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 11
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      12
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 11,
+   "type": "Flat2VRPastePhoto",
+   "pos": [
+    2300,
+    190
+   ],
+   "size": [
+    220,
+    130
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 12
+    },
+    {
+     "name": "canvas",
+     "type": "IMAGE",
+     "link": 13
+    },
+    {
+     "name": "photo_mask",
+     "type": "MASK",
+     "link": 14
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      15,
+      19,
+      26
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "Flat2VRPastePhoto"
+   },
+   "widgets_values": [
+    12
+   ]
+  },
+  {
+   "id": 12,
+   "type": "SaveImage",
+   "pos": [
+    2540,
+    50
+   ],
+   "size": [
+    440,
+    520
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 15
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "flat2vr/left_eye"
+   ],
+   "title": "Left eye"
+  },
+  {
+   "id": 13,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    3060,
+    50
+   ],
+   "size": [
+    400,
+    115
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 16
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      20
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "vr180_l2r_v2_000002300.safetensors",
+    1.0
+   ],
+   "title": "L2R LoRA (strength 1.0)"
+  },
+  {
+   "id": 14,
+   "type": "TextEncodeQwenImage21",
+   "pos": [
+    3060,
+    230
+   ],
+   "size": [
+    400,
+    360
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 17
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 18
+    },
+    {
+     "name": "images.image_1",
+     "type": "IMAGE",
+     "link": 19
+    },
+    {
+     "name": "images.image_2",
+     "type": "IMAGE",
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "links": [
+      21
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "links": [
+      22
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": [
+      23
+     ],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "TextEncodeQwenImage21"
+   },
+   "widgets_values": [
+    "Create the right-eye image for this VR180 left-eye image: the same 180-degree half-equirectangular scene, seen from the right eye's position.",
+    "",
+    2048
+   ],
+   "title": "Text Encode (l2r: fixed prompt, the left eye as image_1)"
+  },
+  {
+   "id": 15,
+   "type": "KSampler",
+   "pos": [
+    3500,
+    50
+   ],
+   "size": [
+    320,
+    315
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 20
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 21
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 22
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 23
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      24
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    0,
+    "randomize",
+    40,
+    1.0,
+    "euler",
+    "simple",
+    1.0
+   ],
+   "title": "KSampler (40 steps, cfg 1)"
+  },
+  {
+   "id": 16,
+   "type": "VAEDecode",
+   "pos": [
+    3500,
+    440
+   ],
+   "size": [
+    225,
+    72
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 24
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 25
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      27
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 17,
+   "type": "Flat2VRJoinEyes",
+   "pos": [
+    3500,
+    580
+   ],
+   "size": [
+    260,
+    100
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "left_eye",
+     "type": "IMAGE",
+     "link": 26
+    },
+    {
+     "name": "right_eye",
+     "type": "IMAGE",
+     "link": 27
+    }
+   ],
+   "outputs": [
+    {
+     "name": "vr180",
+     "type": "IMAGE",
+     "links": [
+      28,
+      29
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "Flat2VRJoinEyes"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 18,
+   "type": "Flat2VRPreview180",
+   "pos": [
+    3860,
+    50
+   ],
+   "size": [
+    880,
+    600
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "vr180",
+     "type": "IMAGE",
+     "link": 29
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "Flat2VRPreview180"
+   },
+   "widgets_values": [],
+   "title": "180 Preview (drag to look around)"
+  },
+  {
+   "id": 19,
+   "type": "SaveImage",
+   "pos": [
+    4780,
+    50
+   ],
+   "size": [
+    520,
+    330
+   ],
+   "flags": {},
+   "order": 18,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 28
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "flat2vr/flat2vr_180_LR"
+   ],
+   "title": "VR180 image (left | right)"
+  }
+ ],
+ "links": [
+  [
+   1,
+   4,
+   0,
+   5,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   6,
+   0,
+   8,
+   0,
+   "CLIP"
+  ],
+  [
+   3,
+   7,
+   0,
+   8,
+   1,
+   "VAE"
+  ],
+  [
+   4,
+   2,
+   0,
+   8,
+   2,
+   "IMAGE"
+  ],
+  [
+   5,
+   3,
+   0,
+   8,
+   4,
+   "STRING"
+  ],
+  [
+   6,
+   5,
+   0,
+   9,
+   0,
+   "MODEL"
+  ],
+  [
+   7,
+   8,
+   0,
+   9,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   8,
+   8,
+   1,
+   9,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   9,
+   8,
+   2,
+   9,
+   3,
+   "LATENT"
+  ],
+  [
+   10,
+   9,
+   0,
+   10,
+   0,
+   "LATENT"
+  ],
+  [
+   11,
+   7,
+   0,
+   10,
+   1,
+   "VAE"
+  ],
+  [
+   12,
+   10,
+   0,
+   11,
+   0,
+   "IMAGE"
+  ],
+  [
+   13,
+   2,
+   0,
+   11,
+   1,
+   "IMAGE"
+  ],
+  [
+   14,
+   2,
+   1,
+   11,
+   2,
+   "MASK"
+  ],
+  [
+   15,
+   11,
+   0,
+   12,
+   0,
+   "IMAGE"
+  ],
+  [
+   16,
+   4,
+   0,
+   13,
+   0,
+   "MODEL"
+  ],
+  [
+   17,
+   6,
+   0,
+   14,
+   0,
+   "CLIP"
+  ],
+  [
+   18,
+   7,
+   0,
+   14,
+   1,
+   "VAE"
+  ],
+  [
+   19,
+   11,
+   0,
+   14,
+   2,
+   "IMAGE"
+  ],
+  [
+   20,
+   13,
+   0,
+   15,
+   0,
+   "MODEL"
+  ],
+  [
+   21,
+   14,
+   0,
+   15,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   22,
+   14,
+   1,
+   15,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   23,
+   14,
+   2,
+   15,
+   3,
+   "LATENT"
+  ],
+  [
+   24,
+   15,
+   0,
+   16,
+   0,
+   "LATENT"
+  ],
+  [
+   25,
+   7,
+   0,
+   16,
+   1,
+   "VAE"
+  ],
+  [
+   26,
+   11,
+   0,
+   17,
+   0,
+   "IMAGE"
+  ],
+  [
+   27,
+   16,
+   0,
+   17,
+   1,
+   "IMAGE"
+  ],
+  [
+   28,
+   17,
+   0,
+   19,
+   0,
+   "IMAGE"
+  ],
+  [
+   29,
+   17,
+   0,
+   18,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "title": "1 \u00b7 Your photo: drop it on the node, drag to place it",
+   "bounding": [
+    0,
+    0,
+    580,
+    940
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "title": "2 \u00b7 What's in the scene (optional)",
+   "bounding": [
+    600,
+    0,
+    500,
+    330
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "title": "3 \u00b7 Models",
+   "bounding": [
+    1140,
+    0,
+    400,
+    760
+   ],
+   "color": "#335",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "title": "4 \u00b7 Generate",
+   "bounding": [
+    1580,
+    0,
+    1420,
+    760
+   ],
+   "color": "#a1309b",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "title": "6 \u00b7 Right eye (l2r LoRA) and the VR180 image",
+   "bounding": [
+    3040,
+    0,
+    2280,
+    760
+   ],
+   "color": "#a1309b",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.5,
+   "offset": [
+    40,
+    340
+   ]
+  }
+ },
+ "version": 0.4
+}
