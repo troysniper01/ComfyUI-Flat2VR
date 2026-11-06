@@ -231,7 +231,8 @@ function setup(node) {
 
   // ---- the frame loop --------------------------------------------------------------------------------
   const stopLoop = frameLoop(() => {
-    if (!canvas.isConnected || (canvas.offsetParent === null && document.fullscreenElement !== root)) return;
+    const r = canvas.getBoundingClientRect();
+    if (!canvas.isConnected || r.width < 2 || r.height < 2) return;  // hidden or collapsed
     if (!drag && (Math.abs(vel.yaw) > MIN_SPEED || Math.abs(vel.pitch) > MIN_SPEED)) {
       target.yaw = cur.yaw = clamp(cur.yaw + vel.yaw, -YAW_LIMIT, YAW_LIMIT);
       target.pitch = cur.pitch = clamp(cur.pitch + vel.pitch, -PITCH_LIMIT, PITCH_LIMIT);

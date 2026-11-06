@@ -7,6 +7,7 @@ const VERTEX = `#version 300 es
 in vec2 aPos;
 void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 const MAX_TEXTURE_SIDE = 4096;  // previews only; the nodes themselves use the full image
+const FETCH_TIMEOUT_MS = 60000;
 
 export const PI = Math.PI;
 export const deg = (d) => (d * PI) / 180;
@@ -140,7 +141,7 @@ export class ShaderView {
 /** Fetch a ComfyUI file (/view) as an upright ImageBitmap, shrunk if it's beyond the preview cap. */
 export async function fetchBitmap(view, gl) {
   const q = new URLSearchParams({ filename: view.filename, subfolder: view.subfolder || "", type: view.type || "input" });
-  const res = await api.fetchApi(`/view?${q}`, { cache: "force-cache" });
+  const res = await api.fetchApi(`/view?${q}`, { cache: "force-cache", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
   const blob = await res.blob();
   const probe = await createImageBitmap(blob, { imageOrientation: "from-image" });
@@ -167,12 +168,17 @@ export function captureWheel(target, handler) {
   return () => window.removeEventListener("wheel", onWheel, { capture: true });
 }
 
-/** Call `tick` every animation frame until `stop()`; cheap when tick has nothing to do. */
-export function frameLoop(tick) {
+/** Call `tick` every animation frame until `stop()`; cheap when tick has nothing to do. An error in
+ * one frame goes to `onError` (default: the console) and the loop keeps running. */
+export function frameLoop(tick, onError = (e) => console.error("[Flat2VR]", e)) {
   let alive = true;
   const step = (t) => {
     if (!alive) return;
-    tick(t);
+    try {
+      tick(t);
+    } catch (e) {
+      onError(e);
+    }
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);

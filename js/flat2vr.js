@@ -17,6 +17,8 @@ const FINE_DRAG = 0.25;  // Ctrl-drag: a quarter of the speed
 const CROP_VIEW_PX = 1200;  // the crop editor's copy of the photo (display only)
 const STEP = 0.5;  // the widgets' step
 const LOAD_TRIES = 8;  // a just-uploaded file can land a moment after the name does
+const REQUEST_TIMEOUT_MS = 30000;
+const UPLOAD_TIMEOUT_MS = 120000;
 const FULL_FRAME_DIAG_MM = 43.27;
 const RAW_PREVIEW_WIDGET = "$$canvas-image-preview";
 const START = { yaw: 0, pitch: -5, diag_fov: 80, focal_35mm: 0 };  // the node's defaults (nodes.py)
@@ -69,6 +71,12 @@ ${SPINNER_CSS}
 ${CROP_CSS}`;
 
 const widget = (node, name) => node.widgets?.find((w) => w.name === name);
+/** Drawn and big enough to see (works in both layouts, whatever their positioning). */
+const onScreen = (e) => {
+  if (!e.isConnected) return false;
+  const r = e.getBoundingClientRect();
+  return r.width >= 2 && r.height >= 2;
+};
 const value = (node, name) => widget(node, name)?.value;
 const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
 const isImageFile = (f) => !!f && (f.type?.startsWith("image/") || /\.(png|jpe?g|webp|bmp|gif|tiff?|avif|heic|heif)$/i.test(f.name));
@@ -207,7 +215,8 @@ function setup(node) {
     let lastError = null;
     for (let i = 0; i < LOAD_TRIES; i++) {
       try {
-        const res = await api.fetchApi(`/flat2vr/photo?image=${encodeURIComponent(name)}`, { cache: "no-store" });
+        const res = await api.fetchApi(`/flat2vr/photo?image=${encodeURIComponent(name)}`,
+                                       { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
         const info = await res.json();
         if (!res.ok) throw Object.assign(new Error(info.error || `HTTP ${res.status}`), { retry: !!info.missing });
         const bitmap = await fetchBitmap(info.view, view.gl);
@@ -240,18 +249,29 @@ function setup(node) {
     showMessage(`Couldn't open ${name}: ${lastError?.message ?? "unknown error"}. Drop a photo (JPG, PNG, WebP) on the node.`, true);
   }
 
+  // A new photo starts from the start position; the photo a saved workflow opens with keeps its own.
+  let restored = false;
+  function newImage(name, reset) {
+    if (reset) {
+      for (const [w, v] of Object.entries(START)) setWidget(node, w, v);
+      setText(node, "crop", START_CROP);
+    }
+    restored = true;
+    if (name) load(name);
+    else { wanted = name; photo = null; spinner.classList.remove("on"); showMessage("Drop a photo anywhere on this node"); dirty = true; }
+  }
+
   // ---- uploading: drop anywhere on the node, paste, or the upload button -----------------------
   async function upload(file) {
     if (!isImageFile(file)) {
       showMessage(`${file?.name ?? "That"} isn't a photo. Drop a JPG, PNG or WebP.`, true);
       return false;
     }
-    ++ticket;
     spinner.classList.add("on");
     try {
       const body = new FormData();
       body.append("image", file, file.name);
-      const res = await api.fetchApi("/upload/image", { method: "POST", body });
+      const res = await api.fetchApi("/upload/image", { method: "POST", body, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
       if (!res.ok) throw new Error(`upload failed (HTTP ${res.status})`);
       const d = await res.json();
       const name = d.subfolder ? `${d.subfolder}/${d.name}` : d.name;
@@ -262,6 +282,7 @@ function setup(node) {
         w.value = name;
         w.callback?.(name);
       }
+      if (!w) newImage(name, true);  // (the widget's callback does this otherwise)
       node.setDirtyCanvas?.(true, true);
       return true;
     } catch (e) {
@@ -310,7 +331,9 @@ function setup(node) {
   // ---- the upload widget's raw-photo thumbnail: the placer replaces it, in both layouts --------
   Object.defineProperty(node, "imgs", { configurable: true, get: () => undefined, set: () => {} });
   const imageWidget = widget(node, "image");
-  if (imageWidget) imageWidget.callback = () => node.setDirtyCanvas?.(true, true);
+  // every pick (the list, ComfyUI's upload button, a drop or paste) is a new photo: reset and load,
+  // even when ComfyUI hands back the same name for a photo it already has
+  if (imageWidget) imageWidget.callback = () => { newImage(imageWidget.value, true); node.setDirtyCanvas?.(true, true); };
   const dropRawPreview = () => {
     const i = node.widgets?.findIndex((w) => w.name === RAW_PREVIEW_WIDGET) ?? -1;
     if (i >= 0) {
@@ -330,7 +353,16 @@ function setup(node) {
   // ---- drawing: every animation frame, only when something changed ------------------------------
   let dirty = true;
   let lastKey = "";
-  let restored = false;  // the first image is the saved workflow's: keep its placement
+  let lastError = "";
+  const reportError = (where, e) => {  // shown in the node, so a screenshot says what went wrong
+    const text = `Placer error (${where}): ${e?.message ?? e}`;
+    if (text === lastError) return;
+    lastError = text;
+    console.error("[Flat2VR]", where, e);
+    spinner.classList.remove("on");
+    status.classList.add("outside");
+    status.textContent = text;
+  };
   const state = () => ({
     image: value(node, "image"), yaw: value(node, "yaw") ?? 0, pitch: value(node, "pitch") ?? 0,
     diag_fov: value(node, "diag_fov") ?? 80, focal_35mm: value(node, "focal_35mm") ?? 0,
@@ -364,19 +396,14 @@ function setup(node) {
     }
   }
 
-  const stopLoop = frameLoop(() => {
+  const stopLoop = frameLoop((t) => tick(t), (e) => reportError("frame", e));
+  function tick() {
     dropRawPreview();
-    if (!canvas.isConnected || canvas.offsetParent === null) return;  // off-screen or collapsed
+    if (!onScreen(canvas)) return;
     const s = state();
     if (s.image !== wanted) {
-      if (s.image && restored) {  // a new photo starts from the start position
-        for (const [name, v] of Object.entries(START)) setWidget(node, name, v);
-        setText(node, "crop", START_CROP);
-        Object.assign(s, START, { crop: START_CROP });
-      }
-      restored = true;
-      if (s.image) load(s.image);
-      else { wanted = s.image; photo = null; showMessage("Drop a photo anywhere on this node"); dirty = true; }
+      newImage(s.image, restored && !!s.image);  // picked from the list, or set by ComfyUI's own upload
+      Object.assign(s, state());
     }
     if (!dropTargets.has(box.closest("[data-node-id]"))) listenForDrops(box.closest("[data-node-id]"));
     cropper.setSpec(s.crop);
@@ -388,7 +415,7 @@ function setup(node) {
       lastKey = key;
       dirty = false;
     }
-  });
+  }
 
   // ---- drag to move: the square spans 180° x 180° -------------------------------------------------
   let drag = null;
