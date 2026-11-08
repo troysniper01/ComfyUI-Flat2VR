@@ -9,7 +9,8 @@ Turn a normal photo into a stereo **VR180** image in ComfyUI, with two LoRAs for
 - **Prompt**: builds the prompt exactly as the training captions were written (optional setting, position and POV body).
 - **Paste Photo**: puts your original photo pixels back after generation.
 - **Refine Mask**: a seam-free mask for an optional detail pass.
-- **Join Eyes**: left | right side by side (4096×2048).
+- **Right Eye (best of N)**: makes the right eye (KSampler + VAE Decode in one), checks it against the left eye (pose changes, zoom, background beyond infinity, smeared depth edges, flat "cardboard" subjects) and tries the next seed until one scores as well as real stereo photos (`target` 1.0) or `max_tries` is used up, keeping the best. Its `report` output lists every try.
+- **Join Eyes**: left | right side by side (4096×2048). It matches the right eye's brightness to the left and, if part of the view sits beyond infinity (eyes would splay outward), turns the right eye back a few pixels. Both can be switched off.
 - **180 Preview**: look around the result inside the node, with a left/right eye toggle.
 
 ## Requirements

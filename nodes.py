@@ -13,6 +13,7 @@ from functools import lru_cache
 import numpy as np
 import torch
 
+from . import stereo_quality as sq
 from . import vr180_geometry as geo
 
 TRAINED_FOV = (38.5, 130.0)  # diagonal FOV range of the training photos
@@ -236,25 +237,127 @@ class Flat2VRPastePhoto:
         return (torch.stack(out),)
 
 
+def _to_rgb8(image) -> np.ndarray:
+    """One ComfyUI image (H x W x C floats 0-1, tensor or array) as H x W x 3 uint8 RGB."""
+    arr = image.detach().cpu().numpy() if hasattr(image, "detach") else np.asarray(image)
+    return (np.clip(arr[..., :3], 0, 1) * 255 + 0.5).astype(np.uint8)
+
+
+def correct_right(left: np.ndarray, right: np.ndarray, match_brightness: bool = True,
+                  fix_divergence: bool = True) -> tuple[np.ndarray, str]:
+    """The right eye (uint8 RGB) with its brightness matched to the left eye and, if part of the view
+    sits beyond infinity, shifted back; and a one-line note of what changed."""
+    left_bgr, right_bgr, notes = left[..., ::-1], right[..., ::-1], []
+    if match_brightness:
+        right_bgr, fits = sq.match_brightness(left_bgr, right_bgr)
+        notes.append("brightness " + " ".join(f"{c} {v:+.1f}" for c, v in zip("BGR", fits)))
+    if fix_divergence:
+        right_bgr, shift = sq.fix_divergence(left_bgr, right_bgr)
+        notes.append(f"shifted {shift:.1f} px (was beyond infinity)" if shift else "no divergence")
+    return np.ascontiguousarray(right_bgr[..., ::-1]), "; ".join(notes) or "no corrections"
+
+
 class Flat2VRJoinEyes:
     """The final VR180 image: left eye | right eye side by side (4096x2048), the layout VR180
-    players expect (save it with "_180_LR" in the name so they detect it)."""
+    players expect (save it with "_180_LR" in the name so they detect it). Before joining it can
+    correct two right-eye faults: brightness that differs from the left eye (matched on the points
+    both eyes see) and background placed beyond infinity, which makes the eyes splay outward (the
+    whole right eye is shifted sideways a few px, a slight turn of the head, so nothing distorts)."""
 
     CATEGORY = "Flat2VR"
     FUNCTION = "join"
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("vr180",)
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("vr180", "report")
     DESCRIPTION = __doc__
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"left_eye": ("IMAGE",), "right_eye": ("IMAGE",)}}
+        return {"required": {
+            "left_eye": ("IMAGE",), "right_eye": ("IMAGE",),
+            "match_brightness": ("BOOLEAN", {"default": True,
+                                             "tooltip": "Match the right eye's brightness and colour to the left eye."}),
+            "fix_divergence": ("BOOLEAN", {"default": True,
+                                           "tooltip": "Shift the right eye back if part of the view sits beyond infinity."}),
+        }}
 
-    def join(self, left_eye, right_eye):
+    def join(self, left_eye, right_eye, match_brightness=True, fix_divergence=True):
         n = max(len(left_eye), len(right_eye))  # a single left eye pairs with every right eye
-        out = [geo.side_by_side(left_eye[i % len(left_eye), :, :, :3].detach().cpu().numpy(),
-                                right_eye[i % len(right_eye), :, :, :3].detach().cpu().numpy()) for i in range(n)]
-        return (torch.from_numpy(np.stack(out)),)
+        out, notes = [], []
+        for i in range(n):
+            left = _to_rgb8(left_eye[i % len(left_eye)])
+            right, note = correct_right(left, _to_rgb8(right_eye[i % len(right_eye)]), match_brightness, fix_divergence)
+            out.append(geo.side_by_side(left.astype(np.float32) / 255, right.astype(np.float32) / 255))
+            notes.append(note)
+        return (torch.from_numpy(np.stack(out)), "\n".join(notes))
+
+
+def best_of(generate, left: np.ndarray, max_tries: int, target: float) -> tuple[np.ndarray, int, float, str]:
+    """Call generate(i) (-> uint8 RGB right eye) for i = 0, 1, ... and score each against the left eye
+    until one scores <= target or max_tries are used. Returns the best right eye, its try index, its
+    score and a report (one line per try)."""
+    best, lines = None, []
+    for i in range(max_tries):
+        right = generate(i)
+        m = sq.stereo_metrics(left[..., ::-1], right[..., ::-1])
+        score, worst = sq.quality_score(m)
+        lines.append(f"try {i + 1}: score {score:.2f} (worst: {worst}) | drift {m['pose_drift']:.2f}"
+                     f" scale {m['scale']:+.2f}% relief {m['relief']:.2f} diverge {100 * m['diverge']:.1f}%"
+                     f" halo {m['halo']:.2f} depth {m['near_shift']:.0f} px")
+        if best is None or score < best[2]:
+            best = (right, i, score)
+        if score <= target:
+            break
+    right, i, score = best
+    verdict = "reached the target" if score <= target else f"best of {len(lines)}, target {target:.2f} not reached"
+    return right, i, score, "\n".join(lines + [f"kept try {i + 1}, score {score:.2f}: {verdict}"])
+
+
+class Flat2VRRightEyeBestOf:
+    """Makes the right eye like KSampler + VAE Decode, checks it against the left eye, and tries again
+    with the next seed until one is good enough (or max_tries is used up), keeping the best. The check
+    measures what goes wrong in a headset: pose changes between the eyes, vertical stretch (zoom),
+    background beyond infinity, smeared depth edges, background pop-outs and too little relief
+    (cardboard). Score 1.0 = as good as 90% of real stereo photos on every check; lower is better."""
+
+    CATEGORY = "Flat2VR"
+    FUNCTION = "generate"
+    RETURN_TYPES = ("IMAGE", "STRING", "FLOAT", "INT")
+    RETURN_NAMES = ("right_eye", "report", "score", "seed")
+    DESCRIPTION = __doc__
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        import comfy.samplers
+
+        return {"required": {
+            "model": ("MODEL",), "positive": ("CONDITIONING",), "negative": ("CONDITIONING",),
+            "latent_image": ("LATENT",), "vae": ("VAE",),
+            "left_eye": ("IMAGE", {"tooltip": "The left eye the right eye is made from (to check against)."}),
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
+            "steps": ("INT", {"default": 40, "min": 1, "max": 200}),
+            "cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1}),
+            "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"default": "euler"}),
+            "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"default": "simple"}),
+            "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+            "max_tries": ("INT", {"default": 4, "min": 1, "max": 16,
+                                  "tooltip": "Most right eyes to make before keeping the best one."}),
+            "target": ("FLOAT", {"default": 1.0, "min": 0.3, "max": 5.0, "step": 0.05,
+                                 "tooltip": "Stop at the first right eye scoring this or lower (1.0 = within real stereo on every check)."}),
+        }}
+
+    def generate(self, model, positive, negative, latent_image, vae, left_eye, seed, steps, cfg, sampler_name,
+                 scheduler, denoise, max_tries, target):
+        import nodes as comfy_nodes  # ComfyUI's own KSampler and VAE Decode (not this file)
+
+        def make(i: int) -> np.ndarray:
+            (latent,) = comfy_nodes.common_ksampler(model, seed + i, steps, cfg, sampler_name, scheduler,
+                                                     positive, negative, latent_image, denoise=denoise)
+            (image,) = comfy_nodes.VAEDecode().decode(vae, latent)
+            return _to_rgb8(image[0])
+
+        right, i, score, report = best_of(make, _to_rgb8(left_eye[0]), max_tries, target)
+        print(f"[Flat2VR] right eye best-of:\n{report}")
+        return (torch.from_numpy(right.astype(np.float32) / 255)[None], report, score, seed + i)
 
 
 def save_preview_jpeg(rgb: np.ndarray, folder: str) -> str:
@@ -329,6 +432,7 @@ NODE_CLASS_MAPPINGS = {
     "Flat2VRRefineMask": Flat2VRRefineMask,
     "Flat2VRPrompt": Flat2VRPrompt,
     "Flat2VRPastePhoto": Flat2VRPastePhoto,
+    "Flat2VRRightEyeBestOf": Flat2VRRightEyeBestOf,
     "Flat2VRJoinEyes": Flat2VRJoinEyes,
     "Flat2VRPreview180": Flat2VRPreview180,
 }
@@ -337,6 +441,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Flat2VRRefineMask": "Flat2VR Refine Mask",
     "Flat2VRPrompt": "Flat2VR Prompt",
     "Flat2VRPastePhoto": "Flat2VR Paste Photo",
+    "Flat2VRRightEyeBestOf": "Flat2VR Right Eye (best of N)",
     "Flat2VRJoinEyes": "Flat2VR Join Eyes (VR180)",
     "Flat2VRPreview180": "Flat2VR 180 Preview",
 }
