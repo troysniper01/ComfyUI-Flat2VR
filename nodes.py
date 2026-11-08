@@ -291,33 +291,38 @@ class Flat2VRJoinEyes:
         return (torch.from_numpy(np.stack(out)), "\n".join(notes))
 
 
-def best_of(generate, left: np.ndarray, max_tries: int, target: float) -> tuple[np.ndarray, int, float, str]:
+def best_of(generate, left: np.ndarray, min_tries: int, max_tries: int,
+            limits: dict | None = None) -> tuple[np.ndarray, int, float, str]:
     """Call generate(i) (-> uint8 RGB right eye) for i = 0, 1, ... and score each against the left eye
-    until one scores <= target or max_tries are used. Returns the best right eye, its try index, its
+    (sq.quality_score with `limits`: <= 1 = every check within its limit). Stops once a try passes and
+    at least min_tries were made, or after max_tries. Returns the best right eye, its try index, its
     score and a report (one line per try)."""
     best, lines = None, []
-    for i in range(max_tries):
+    for i in range(max(min_tries, max_tries)):
         right = generate(i)
         m = sq.stereo_metrics(left[..., ::-1], right[..., ::-1])
-        score, worst = sq.quality_score(m)
-        lines.append(f"try {i + 1}: score {score:.2f} (worst: {worst}) | drift {m['pose_drift']:.2f}"
-                     f" scale {m['scale']:+.2f}% relief {m['relief']:.2f} diverge {100 * m['diverge']:.1f}%"
-                     f" halo {m['halo']:.2f} depth {m['near_shift']:.0f} px")
+        score, worst = sq.quality_score(m, limits)
+        lines.append(f"try {i + 1}: score {score:.2f} ({'pass' if score <= 1 else 'worst: ' + worst}) | drift"
+                     f" {m['pose_drift']:.2f} zoom {m['scale']:+.2f}% relief {m['relief']:.2f} beyond infinity"
+                     f" {100 * m['diverge']:.1f}% halo {m['halo']:.2f} pop-outs {100 * m['far_spikes']:.1f}%"
+                     f" depth {m['near_shift']:.0f} px")
         if best is None or score < best[2]:
             best = (right, i, score)
-        if score <= target:
+        if score <= 1 and i + 1 >= min_tries:
             break
     right, i, score = best
-    verdict = "reached the target" if score <= target else f"best of {len(lines)}, target {target:.2f} not reached"
+    verdict = "passes every check" if score <= 1 else f"best of {len(lines)}; none passed every check"
     return right, i, score, "\n".join(lines + [f"kept try {i + 1}, score {score:.2f}: {verdict}"])
 
 
 class Flat2VRRightEyeBestOf:
     """Makes the right eye like KSampler + VAE Decode, checks it against the left eye, and tries again
-    with the next seed until one is good enough (or max_tries is used up), keeping the best. The check
-    measures what goes wrong in a headset: pose changes between the eyes, vertical stretch (zoom),
-    background beyond infinity, smeared depth edges, background pop-outs and too little relief
-    (cardboard). Score 1.0 = as good as 90% of real stereo photos on every check; lower is better."""
+    with the next seed until one passes every check (or max_tries is used up), keeping the best. The
+    checks measure what goes wrong in a headset: pose changes between the eyes, zoom, background
+    beyond infinity, smeared depth edges, background pop-outs and too little relief (cardboard).
+    Each has its own limit (0 = check off); the defaults are what 90% of real stereo photos stay
+    within, a little looser for halo and beyond-infinity (Join Eyes fixes the latter). Score = the
+    worst check / its limit: 1.0 or lower passes."""
 
     CATEGORY = "Flat2VR"
     FUNCTION = "generate"
@@ -339,14 +344,27 @@ class Flat2VRRightEyeBestOf:
             "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"default": "euler"}),
             "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"default": "simple"}),
             "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+            "min_tries": ("INT", {"default": 1, "min": 1, "max": 16,
+                                  "tooltip": "Always make at least this many and keep the best (1 = stop at the first that passes)."}),
             "max_tries": ("INT", {"default": 4, "min": 1, "max": 16,
-                                  "tooltip": "Most right eyes to make before keeping the best one."}),
-            "target": ("FLOAT", {"default": 1.0, "min": 0.3, "max": 5.0, "step": 0.05,
-                                 "tooltip": "Stop at the first right eye scoring this or lower (1.0 = within real stereo on every check)."}),
+                                  "tooltip": "Most right eyes to make; if none passes, the best one is kept."}),
+            "max_pose_drift": ("FLOAT", {"default": sq.RECOMMENDED_LIMITS["pose_drift"], "min": 0.0, "max": 1.0, "step": 0.01,
+                                         "tooltip": "Share of points that move vertically between the eyes (a changed pose or limb). Real stereo ~0.05. 0 = off."}),
+            "max_zoom_pct": ("FLOAT", {"default": sq.RECOMMENDED_LIMITS["scale"], "min": 0.0, "max": 10.0, "step": 0.05,
+                                       "tooltip": "Vertical stretch between the eyes, %. Real stereo ~0. 0 = off."}),
+            "min_relief": ("FLOAT", {"default": sq.RECOMMENDED_LIMITS["relief"], "min": 0.0, "max": 10.0, "step": 0.05,
+                                     "tooltip": "Depth detail inside close subjects (px); lower looks like a cardboard cutout. Real stereo median ~2.2. 0 = off."}),
+            "max_halo": ("FLOAT", {"default": sq.RECOMMENDED_LIMITS["halo"], "min": 0.0, "max": 1.0, "step": 0.01,
+                                   "tooltip": "Smeared depth edges (background stuck to the subject). Real stereo ~0.19. 0 = off."}),
+            "max_popouts_pct": ("FLOAT", {"default": 100 * sq.RECOMMENDED_LIMITS["far_spikes"], "min": 0.0, "max": 100.0, "step": 0.5,
+                                          "tooltip": "Bits of distant background popping out as if close, % of the background. Real stereo ~0. 0 = off."}),
+            "max_beyond_infinity_pct": ("FLOAT", {"default": 100 * sq.RECOMMENDED_LIMITS["diverge"], "min": 0.0, "max": 100.0, "step": 0.5,
+                                                  "tooltip": "View placed beyond infinity (eyes splay outward), %. Real stereo ~2-8; Join Eyes fixes moderate amounts. 0 = off."}),
         }}
 
     def generate(self, model, positive, negative, latent_image, vae, left_eye, seed, steps, cfg, sampler_name,
-                 scheduler, denoise, max_tries, target):
+                 scheduler, denoise, min_tries, max_tries, max_pose_drift, max_zoom_pct, min_relief, max_halo,
+                 max_popouts_pct, max_beyond_infinity_pct):
         import nodes as comfy_nodes  # ComfyUI's own KSampler and VAE Decode (not this file)
 
         def make(i: int) -> np.ndarray:
@@ -355,7 +373,9 @@ class Flat2VRRightEyeBestOf:
             (image,) = comfy_nodes.VAEDecode().decode(vae, latent)
             return _to_rgb8(image[0])
 
-        right, i, score, report = best_of(make, _to_rgb8(left_eye[0]), max_tries, target)
+        limits = {"pose_drift": max_pose_drift, "scale": max_zoom_pct, "relief": min_relief, "halo": max_halo,
+                  "far_spikes": max_popouts_pct / 100, "diverge": max_beyond_infinity_pct / 100}
+        right, i, score, report = best_of(make, _to_rgb8(left_eye[0]), min_tries, max_tries, limits)
         print(f"[Flat2VR] right eye best-of:\n{report}")
         return (torch.from_numpy(right.astype(np.float32) / 255)[None], report, score, seed + i)
 

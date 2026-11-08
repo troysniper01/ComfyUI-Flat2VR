@@ -230,18 +230,24 @@ def _far(shift: np.ndarray, ok: np.ndarray, b: int) -> dict:
 REAL_LIMITS = {"pose_drift": 0.19, "scale": 0.7, "diverge": 0.08, "halo": 0.29, "far_spikes": 0.02, "relief": 1.47}
 
 
-def quality_score(m: dict) -> tuple[float, str]:
-    """(score, worst check): each check divided by its real-stereo limit, the worst one counts.
-    <= 1 means the pair is within real stereo on every check. Relief counts the other way round
-    (too little = cardboard), so selecting by score never rewards a flatter right eye."""
-    parts = {
-        "pose_drift": m["pose_drift"] / REAL_LIMITS["pose_drift"],
-        "scale": abs(m["scale"]) / REAL_LIMITS["scale"],
-        "diverge": m["diverge"] / REAL_LIMITS["diverge"],
-        "halo": m["halo"] / REAL_LIMITS["halo"],
-        "far_spikes": m["far_spikes"] / REAL_LIMITS["far_spikes"],
-        "relief": REAL_LIMITS["relief"] / max(1e-3, m["relief"]),
-    }
+# The best-of node's defaults: real stereo's limits, except halo (it partly reads roundness as smear)
+# and divergence (Join Eyes fixes moderate cases afterwards; flat2vr left eyes typically read 10-12%).
+RECOMMENDED_LIMITS = {**REAL_LIMITS, "halo": 0.35, "diverge": 0.15}
+
+
+def quality_score(m: dict, limits: dict | None = None) -> tuple[float, str]:
+    """(score, worst check): each check divided by its limit (REAL_LIMITS unless given; a limit of 0
+    turns that check off), the worst one counts. <= 1 means every check is within its limit. Relief
+    counts the other way round (too little = cardboard), so selecting by score never rewards a
+    flatter right eye."""
+    lim = REAL_LIMITS if limits is None else limits
+    values = {"pose_drift": m["pose_drift"], "scale": abs(m["scale"]), "diverge": m["diverge"],
+              "halo": m["halo"], "far_spikes": m["far_spikes"]}
+    parts = {k: v / lim[k] for k, v in values.items() if lim.get(k)}
+    if lim.get("relief"):
+        parts["relief"] = lim["relief"] / max(1e-3, m["relief"])
+    if not parts:
+        return 0.0, "none"
     worst = max(parts, key=parts.get)
     return float(parts[worst]), worst
 
