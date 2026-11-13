@@ -25,6 +25,7 @@ INSTRUCTION = ("Fill in the grey area around the photo to complete this VR180 im
 L2R_INSTRUCTION = ("Create the right-eye image for this VR180 left-eye image: the same 180-degree "
                    "half-equirectangular scene, seen from the right eye's position.")
 POV_PHRASE = "POV body: visible."
+POV_NONE_PHRASE = "POV body: none."  # the v5 data (the MiniMax-H3 LoRA) labels no-body frames too
 WATERMARK_PHRASE = "Watermark: visible."
 VIGNETTE_PHRASE = "Vignette: visible."
 
@@ -196,8 +197,9 @@ def normalize_setting(text: str) -> str:
 
 
 def caption(setting: str = "", position: str = "", pov: bool = False, watermark: bool = False,
-            vignette: bool = False) -> str:
-    """The training caption: instruction, then Setting / Position / POV / Watermark / Vignette."""
+            vignette: bool = False, label_no_body: bool = False) -> str:
+    """The training caption: instruction, then Setting / Position / POV / Watermark / Vignette.
+    label_no_body: say "POV body: none." when there is no body (v5 / H3 captions); off for the Qwen v4 LoRA."""
     text = INSTRUCTION
     if setting and setting.strip():
         text += f" Setting: {setting.strip().rstrip('.')}."
@@ -205,6 +207,8 @@ def caption(setting: str = "", position: str = "", pov: bool = False, watermark:
         text += f" Position: {position.strip()}."
     if pov:
         text += f" {POV_PHRASE}"
+    elif label_no_body:
+        text += f" {POV_NONE_PHRASE}"
     if watermark:
         text += f" {WATERMARK_PHRASE}"
     if vignette:

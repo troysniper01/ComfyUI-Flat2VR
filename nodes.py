@@ -200,10 +200,15 @@ class Flat2VRPrompt:
                                    "tooltip": "Optional: the place only, no people, e.g. 'bright bedroom with white walls and a large window'."}),
             "position": (POSITIONS, {"default": "none", "tooltip": "Optional: one of the trained position tags."}),
             "pov_body": ("BOOLEAN", {"default": False, "tooltip": "The camera person's body in shot."}),
+        }, "optional": {
+            "label_no_body": ("BOOLEAN", {"default": False, "tooltip": (
+                "Say 'POV body: none.' when pov_body is off. On for the MiniMax-H3 LoRA (its captions always "
+                "say none or visible); off for the Qwen LoRA (trained without it).")}),
         }}
 
-    def build(self, setting, position, pov_body):
-        return (geo.caption(geo.normalize_setting(setting), "" if position == "none" else position, pov_body),)
+    def build(self, setting, position, pov_body, label_no_body=False):
+        return (geo.caption(geo.normalize_setting(setting), "" if position == "none" else position, pov_body,
+                            label_no_body=label_no_body),)
 
 
 class Flat2VRPastePhoto:
