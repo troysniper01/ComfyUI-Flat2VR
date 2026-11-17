@@ -12,8 +12,8 @@
         -70
       ],
       "size": [
-        540,
-        860
+        538.9736837635387,
+        832.2894616155421
       ],
       "flags": {},
       "order": 0,
@@ -484,11 +484,11 @@
         "Node name for S&R": "Flat2VRVignette"
       },
       "widgets_values": [
-        55,
+        65,
         0.9
       ],
       "widgets_values_named": {
-        "start_deg": 55,
+        "start_deg": 65,
         "strength": 0.9
       }
     },
@@ -664,14 +664,14 @@
       "widgets_values": [
         "",
         "vr180_flat2vr_v1.safetensors",
-        0.9,
-        357877178864003
+        0.95,
+        154637267414531
       ],
       "widgets_values_named": {
         "prompt": "",
         "lora_name": "vr180_flat2vr_v1.safetensors",
-        "strength_model": 0.9,
-        "seed": 357877178864003
+        "strength_model": 0.95,
+        "seed": 154637267414531
       }
     },
     {
@@ -821,14 +821,14 @@
       "widgets_values": [
         "vr180_l2r_v1.safetensors",
         1,
-        186279567772496,
+        246518354847184,
         1,
         1
       ],
       "widgets_values_named": {
         "lora_name": "vr180_l2r_v1.safetensors",
         "strength_model": 1,
-        "seed": 186279567772496,
+        "seed": 246518354847184,
         "min_tries": 1,
         "max_tries": 1
       }
@@ -846,7 +846,7 @@
       ],
       "flags": {},
       "order": 12,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "images",
@@ -865,9 +865,7 @@
         "cnr_id": "comfy-core",
         "ver": "0.45.0",
         "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": [],
-      "widgets_values_named": {}
+      }
     }
   ],
   "links": [
@@ -2361,7 +2359,7 @@
             },
             "widgets_values": [
               "enable",
-              756858529339462,
+              918123727113877,
               "randomize",
               6,
               1,
@@ -2373,7 +2371,7 @@
             ],
             "widgets_values_named": {
               "add_noise": "enable",
-              "noise_seed": 756858529339462,
+              "noise_seed": 918123727113877,
               "control_after_generate": "randomize",
               "steps": 6,
               "cfg": 1,
@@ -3285,22 +3283,6 @@
             "type": "INT"
           },
           {
-            "id": 111,
-            "origin_id": -10,
-            "origin_slot": 7,
-            "target_id": 31,
-            "target_slot": 7,
-            "type": "INT"
-          },
-          {
-            "id": 112,
-            "origin_id": -10,
-            "origin_slot": 8,
-            "target_id": 31,
-            "target_slot": 8,
-            "type": "INT"
-          },
-          {
             "id": 97,
             "origin_id": -10,
             "origin_slot": 2,
@@ -3323,6 +3305,22 @@
             "target_id": 30,
             "target_slot": 4,
             "type": "VAE"
+          },
+          {
+            "id": 111,
+            "origin_id": -10,
+            "origin_slot": 7,
+            "target_id": 31,
+            "target_slot": 7,
+            "type": "INT"
+          },
+          {
+            "id": 112,
+            "origin_id": -10,
+            "origin_slot": 8,
+            "target_id": 31,
+            "target_slot": 8,
+            "type": "INT"
           }
         ],
         "extra": {}
@@ -3332,10 +3330,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 1.0717944050000046,
+      "scale": 0.8857805000000079,
       "offset": [
-        528.8095559289553,
-        121.64495829343457
+        409.269427212446,
+        -383.3706201783672
       ]
     },
     "frontendVersion": "1.59.1",
