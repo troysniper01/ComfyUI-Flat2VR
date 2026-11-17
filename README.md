@@ -10,7 +10,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/troysniper01/ComfyUI-Flat2VR
 ```
 
-Needs a recent ComfyUI (the workflow uses subgraphs). No extra Python packages.
+Or install it from ComfyUI Manager (search "Flat2VR"). Needs a recent ComfyUI (the workflow uses subgraphs). GPL-3.0.
 
 Models:
 

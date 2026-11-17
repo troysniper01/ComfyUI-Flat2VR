@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-flat2vr"
+description = "Nodes for turning a flat photo into a VR180 image with the flat2vr (MiniMax-H3-Image) and l2r (Qwen-Image 2.1) LoRAs."
+version = "1.0.0"
+license = { file = "LICENSE" }
+dependencies = ["numpy", "opencv-python-headless"]
+
+[project.urls]
+Repository = "https://github.com/troysniper01/ComfyUI-Flat2VR"
+
+[tool.comfy]
+PublisherId = "troysniper01"
+DisplayName = "ComfyUI-Flat2VR"
+Icon = ""
